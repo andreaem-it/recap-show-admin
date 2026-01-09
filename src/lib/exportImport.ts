@@ -188,15 +188,34 @@ export function compareSeries(oldSeries: TVSeries, newSeries: Partial<TVSeries>)
 }
 
 /**
- * Importa una serie da JSON (per aggiornamento)
+ * Importa una serie da JSON (per creazione o aggiornamento)
  */
+export interface ImportSeriesOptions {
+  updateIfExists?: boolean;
+  seriesId?: string;
+}
+
 export async function importSeriesFromJSON(
   jsonData: any,
-  currentSeriesId: string
+  options?: ImportSeriesOptions | string
 ): Promise<{ success: boolean; seriesId?: string; error?: string }> {
   try {
+    // Gestisci la compatibilità con la vecchia firma (stringa)
+    let updateIfExists = false;
+    let seriesId: string | undefined;
+    
+    if (typeof options === 'string') {
+      // Vecchia firma: importSeriesFromJSON(jsonData, seriesId)
+      seriesId = options;
+      updateIfExists = true;
+    } else if (options) {
+      // Nuova firma: importSeriesFromJSON(jsonData, { updateIfExists, seriesId })
+      updateIfExists = options.updateIfExists ?? false;
+      seriesId = options.seriesId;
+    }
+    
     console.log('[IMPORT] === INIZIO IMPORT SERIES ===');
-    console.log('[IMPORT] Series ID:', currentSeriesId);
+    console.log('[IMPORT] Options:', { updateIfExists, seriesId, jsonDataId: jsonData.id });
     console.log('[IMPORT] JSON Data ricevuto:', {
       title: jsonData.title,
       category: jsonData.category,
@@ -215,35 +234,52 @@ export async function importSeriesFromJSON(
     
     // Prepara i dati (rimuovi eventuali campi Firebase)
     console.log('[IMPORT] Preparazione dati...');
-    const { id, createdAt, updatedAt, ...seriesData } = jsonData;
-    console.log('[IMPORT] Campi rimossi:', { id, createdAt, updatedAt });
-    console.log('[IMPORT] Dati preparati per update:', {
-      title: seriesData.title,
-      category: seriesData.category,
-      seasonsCount: seriesData.seasons?.length,
-      hasSeasons: !!seriesData.seasons,
-      keys: Object.keys(seriesData),
-    });
+    const { id: jsonId, createdAt, updatedAt, ...seriesData } = jsonData;
+    console.log('[IMPORT] Campi rimossi:', { id: jsonId, createdAt, updatedAt });
     
-    // Aggiorna la serie esistente
-    console.log('[IMPORT] Chiamata updateSeries...');
-    console.log('[IMPORT] Parametri updateSeries:', {
-      id: currentSeriesId,
-      dataType: typeof seriesData,
-      isArray: Array.isArray(seriesData),
-    });
+    // Determina l'ID della serie da usare
+    const targetSeriesId = seriesId || jsonId;
     
-    const updatedSeries = await updateSeries(currentSeriesId, seriesData as TVSeries);
+    // Se updateIfExists è true e abbiamo un ID, prova ad aggiornare
+    if (updateIfExists && targetSeriesId) {
+      try {
+        // Verifica se la serie esiste
+        const existingSeries = await getSeriesDetails(targetSeriesId);
+        console.log('[IMPORT] Serie esistente trovata, procedo con l\'aggiornamento');
+        console.log('[IMPORT] Dati preparati per update:', {
+          title: seriesData.title,
+          category: seriesData.category,
+          seasonsCount: seriesData.seasons?.length,
+          hasSeasons: !!seriesData.seasons,
+          keys: Object.keys(seriesData),
+        });
+        
+        // Aggiorna la serie esistente
+        console.log('[IMPORT] Chiamata updateSeries...');
+        const updatedSeries = await updateSeries(targetSeriesId, seriesData as TVSeries);
+        
+        console.log('[IMPORT] Update completato con successo');
+        console.log('[IMPORT] Serie aggiornata:', {
+          id: updatedSeries.id,
+          title: updatedSeries.title,
+          seasonsCount: updatedSeries.seasons?.length,
+        });
+        console.log('[IMPORT] === FINE IMPORT SERIES (SUCCESSO) ===');
+        
+        return { success: true, seriesId: targetSeriesId };
+      } catch (error: any) {
+        // Se la serie non esiste e updateIfExists è true, crea una nuova serie
+        if (error.message?.includes('not found') || error.message?.includes('non trovata')) {
+          console.log('[IMPORT] Serie non trovata, procedo con la creazione');
+          return await createSeriesFromJSON(jsonData);
+        }
+        throw error;
+      }
+    }
     
-    console.log('[IMPORT] Update completato con successo');
-    console.log('[IMPORT] Serie aggiornata:', {
-      id: updatedSeries.id,
-      title: updatedSeries.title,
-      seasonsCount: updatedSeries.seasons?.length,
-    });
-    console.log('[IMPORT] === FINE IMPORT SERIES (SUCCESSO) ===');
-    
-    return { success: true, seriesId: currentSeriesId };
+    // Crea una nuova serie
+    console.log('[IMPORT] Creazione nuova serie...');
+    return await createSeriesFromJSON(jsonData);
   } catch (error: any) {
     console.error('[IMPORT] === ERRORE NELL\'IMPORTAZIONE ===');
     console.error('[IMPORT] Tipo errore:', error?.constructor?.name);
