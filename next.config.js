@@ -14,8 +14,8 @@ const nextConfig = {
     unoptimized: true,
   },
   env: {
-    // URL dell'API locale - per ora usiamo l'API esistente
-    API_BASE_URL: process.env.API_BASE_URL || 'http://localhost:3001',
+    // URL dell'API Vercel - può essere sovrascritto con variabile d'ambiente
+    API_BASE_URL: process.env.API_BASE_URL || 'https://recap-show-api.vercel.app',
   },
 }
 
