@@ -82,6 +82,12 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-6">
+              <Link
+                href="/dashboard/reports"
+                className="px-4 py-2 bg-dark-primary text-white rounded-md hover:bg-dark-primary/90 text-sm font-semibold"
+              >
+                Segnalazioni
+              </Link>
               {/* Statistiche */}
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
