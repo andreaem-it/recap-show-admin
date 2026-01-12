@@ -33,6 +33,34 @@ export function exportSeriesToJSON(series: TVSeries): void {
 }
 
 /**
+ * Normalizza i dati della serie generando automaticamente gli id mancanti per gli episodi
+ * Compatibile con schema v1.5 (episodeCount opzionale, id episodi opzionali)
+ */
+function normalizeSeriesData(seriesData: any, seriesId: string): void {
+  if (!seriesData.seasons || !Array.isArray(seriesData.seasons)) {
+    return;
+  }
+  
+  seriesData.seasons.forEach((season: any, seasonIndex: number) => {
+    if (!season.episodes || !Array.isArray(season.episodes)) {
+      return;
+    }
+    
+    season.episodes.forEach((episode: any, episodeIndex: number) => {
+      // Genera id se mancante (v1.5: id è opzionale)
+      if (!episode.id) {
+        episode.id = `${seriesId}-s${season.seasonNumber}-e${episode.episodeNumber}`;
+      }
+      
+      // Assicura che seasonNumber sia presente
+      if (!episode.seasonNumber && season.seasonNumber) {
+        episode.seasonNumber = season.seasonNumber;
+      }
+    });
+  });
+}
+
+/**
  * Valida la struttura JSON di una serie
  */
 export function validateSeriesJSON(data: any): { valid: boolean; error?: string } {
@@ -61,16 +89,24 @@ export function validateSeriesJSON(data: any): { valid: boolean; error?: string 
         return { valid: false, error: `Stagione ${i + 1}: campi id, seasonNumber e title sono obbligatori` };
       }
       
+      // episodeCount è opzionale (v1.5+)
+      // Non validiamo perché è opzionale per backward compatibility
+      
       if (!Array.isArray(season.episodes)) {
         return { valid: false, error: `Stagione ${i + 1}: il campo "episodes" deve essere un array` };
       }
       
       // Valida struttura episodi
+      // V1.5: id è opzionale (verrà generato automaticamente se mancante)
       for (let j = 0; j < season.episodes.length; j++) {
         const episode = season.episodes[j];
-        if (!episode.id || !episode.episodeNumber || !episode.title) {
-          return { valid: false, error: `Stagione ${i + 1}, Episodio ${j + 1}: campi id, episodeNumber e title sono obbligatori` };
+        if (!episode.episodeNumber || typeof episode.episodeNumber !== 'number') {
+          return { valid: false, error: `Stagione ${i + 1}, Episodio ${j + 1}: campo episodeNumber è obbligatorio e deve essere un numero` };
         }
+        if (!episode.title || typeof episode.title !== 'string') {
+          return { valid: false, error: `Stagione ${i + 1}, Episodio ${j + 1}: campo title è obbligatorio e deve essere una stringa` };
+        }
+        // id è opzionale - verrà generato automaticamente durante l'import se mancante
       }
     }
     
@@ -239,6 +275,9 @@ export async function importSeriesFromJSON(
     
     // Determina l'ID della serie da usare
     const targetSeriesId = seriesId || jsonId;
+    
+    // Normalizza i dati (genera id mancanti per episodi)
+    normalizeSeriesData(seriesData, targetSeriesId || jsonId || 'temp');
     
     // Se updateIfExists è true e abbiamo un ID, prova ad aggiornare
     if (updateIfExists && targetSeriesId) {

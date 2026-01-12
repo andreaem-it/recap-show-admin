@@ -32,6 +32,9 @@ export default function ReportsPage() {
   const loadReports = async () => {
     try {
       setLoading(true);
+      if (!db) {
+        throw new Error('Firestore non configurato.');
+      }
       const reportsRef = collection(db, 'reportChanges');
       const q = query(reportsRef, orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
@@ -60,6 +63,9 @@ export default function ReportsPage() {
 
   const updateReportStatus = async (reportId: string, status: 'reviewed' | 'rejected') => {
     try {
+      if (!db) {
+        throw new Error('Firestore non configurato.');
+      }
       const reportRef = doc(db, 'reportChanges', reportId);
       await updateDoc(reportRef, {
         status,

@@ -55,6 +55,7 @@ export interface Season {
   recap?: string;
   curiosities?: string[];
   spoilers?: string[];
+  episodeCount?: number; // V1.5: Numero TOTALE reale di episodi della stagione (opzionale)
 }
 
 export type SeriesCategory = 'Drama' | 'Fantasy' | 'Crime' | 'Comedy' | 'Thriller' | 'Sci-Fi' | 'Action';
